@@ -53,6 +53,11 @@ Toplam gecikme genelde **25–40 ms** arasındadır; konuşmada fark edilmez.
    izni istemez; Başlat menüsüne ekler, isteğe bağlı masaüstü kısayolu oluşturur ve bitince uygulamayı
    başlatabilir. VB-Cable kurulu değilse kurulumun sonunda uyarıp indirme sayfasını açmayı teklif eder.
    Kaldırmak için: *Ayarlar › Uygulamalar › CleanMic › Kaldır*.
+
+   > **"Windows bilgisayarınızı korudu" uyarısı çıkarsa:** kurulum dosyası dijital olarak imzalı
+   > olmadığı için Windows SmartScreen tanımadığı uygulamalarda bu uyarıyı gösterir.
+   > **Ek bilgi › Yine de çalıştır**'a bas. Kaynak kodun tamamı bu repoda; istersen kendin de
+   > derleyebilirsin (bkz. [Geliştirme](#geliştirme)).
 3. **Oyunda ve Discord'da** mikrofon olarak **CABLE Output (VB-Audio Virtual Cable)** seç.
    Hoparlör olarak kulaklığını bırak; **asla CABLE Input seçme**, yoksa karşı taraf kendini duyar.
 4. **Discord'da** *Gürültü engelleme (Krisp)*, *Yankı engelleme* ve *Otomatik kazanç kontrolü*nü kapat.
@@ -207,6 +212,14 @@ cd src-tauri; cargo test --release   # ses zinciri testleri (konuşma sonu kuyru
 ```
 
 Sürüm geçmişi: [CHANGELOG.md](CHANGELOG.md)
+
+## Lisans
+
+[MIT](LICENSE) © 2026 YusufEsan
+
+Kullanılan açık kaynak bileşenler kendi lisanslarıyla dağıtılır: Tauri (MIT/Apache-2.0),
+cpal (Apache-2.0), nnnoiseless / RNNoise (BSD-3-Clause), symphonia (MPL-2.0).
+VB-Audio Virtual Cable ayrı bir üründür ve bu projeyle birlikte dağıtılmaz.
 
 ```
 src-tauri/src/
