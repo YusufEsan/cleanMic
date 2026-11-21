@@ -123,17 +123,30 @@ impl Gate {
         Self { env: 0.0, gain: 0.0, hold: 0 }
     }
 
+    /// `voice`: RNNoise'un "şu an konuşma var" kararı. Konuşma bitince gate, seviye
+    /// eşiğin üstünde kalsa bile (RNNoise'un sönen kalıntısı) kapanmaya başlar.
     #[inline]
-    pub fn process(&mut self, x: f32, thresh: f32, release_coef: f32) -> f32 {
+    pub fn process(&mut self, x: f32, thresh: f32, release_coef: f32, voice: bool) -> f32 {
         let det = x.abs();
         self.env = if det > self.env { det } else { self.env * 0.9979 }; // ~10 ms
-        if self.env > thresh {
-            self.hold = 4_800; // 100 ms bekleme: kelime sonları kesilmesin
+        if self.env > thresh && voice {
+            self.hold = 2_880; // 60 ms bekleme: kelimeler arası kısa duraklamalar kesilmesin
+        } else if !voice && self.hold > 960 {
+            self.hold = 960; // konuşma bitti: bekleme 20 ms'ye iner
         } else if self.hold > 0 {
             self.hold -= 1;
         }
         let target = if self.hold > 0 { 1.0 } else { 0.0 };
-        let c = if target > self.gain { 0.9896 } else { release_coef }; // açılış ~2 ms
+        // açılış ~2 ms; konuşma bittiyse 25 ms'de kapan (kuyruktaki gürültü kalıntısı duyulmasın),
+        // konuşma içindeki duraklamalarda kullanıcının bırakma süresi geçerli
+        const FAST_RELEASE: f32 = 0.999_17; // coef_ms(25)
+        let c = if target > self.gain {
+            0.9896
+        } else if voice {
+            release_coef
+        } else {
+            release_coef.min(FAST_RELEASE)
+        };
         self.gain = target + (self.gain - target) * c;
         x * self.gain
     }
@@ -168,7 +181,12 @@ impl Compressor {
             slope * over
         };
         self.gr_db = gr;
-        x * db_to_lin(gr) * makeup
+        // Taban genişletmesi: çok sessiz sinyali (konuşma sonrası gürültü kalıntısı)
+        // makeup ile yükseltmek yerine kıs. -55 dB altında 1:3 genişletme.
+        const EXP_T: f32 = -55.0;
+        let lvl = over + THRESH;
+        let exp = if lvl < EXP_T { ((lvl - EXP_T) * 2.0).max(-40.0) } else { 0.0 };
+        x * db_to_lin(gr + exp) * makeup
     }
 }
 

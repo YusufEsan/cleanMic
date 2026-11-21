@@ -38,6 +38,7 @@ pub struct Chain {
     eq_high: Biquad,
     last_eq: (f32, f32, f32),
     deess: DeEsser,
+    vad_s: f32,
     g_duck: f32,
     /// Bu bloktaki soundboard örnekleri (kulaklığa ayrıca gönderilebilsin diye)
     pub sb: [f32; FRAME],
@@ -89,6 +90,7 @@ impl Chain {
             eq_high: Biquad::default(),
             last_eq: (f32::NAN, f32::NAN, f32::NAN),
             deess: DeEsser::new(),
+            vad_s: 0.0,
             g_duck: 1.0,
             sb: [0.0; FRAME],
             pitch: PitchShifter::new(),
@@ -188,6 +190,9 @@ impl Chain {
         }
         st.vad = self.denoise.process_frame(&mut self.dn_out, &self.dn_in);
         let ai_target = if p.ai_on { p.ai_strength.clamp(0.0, 1.0) } else { 0.0 };
+        // VAD hızlı yükselir, ~40 ms'de söner; RNNoise kapalıysa gate sadece seviyeye bakar
+        self.vad_s = st.vad.max(self.vad_s * 0.75);
+        let voice = !p.ai_on || self.vad_s > 0.3;
 
         let gate_thr = db_to_lin(p.gate_thresh_db);
         let gate_rel = coef_ms(p.gate_release_ms);
@@ -215,7 +220,7 @@ impl Chain {
             let mut y = *x * (1.0 - self.g_ai) + clean * self.g_ai;
 
             if p.gate_on {
-                y = self.gate.process(y, gate_thr, gate_rel);
+                y = self.gate.process(y, gate_thr, gate_rel, voice);
             }
             if p.comp_on {
                 y = self.comp.process(y, ratio, makeup);
@@ -324,5 +329,96 @@ impl Chain {
         self.voices.retain(|v| v.2 < v.1.len());
         st.gr_db = self.comp.gr_db.min(0.0) + self.limiter.gr_db.min(0.0);
         st
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::{apply_preset, DspParams};
+    use std::sync::mpsc::channel;
+
+    /// Oda gürültüsü (-56 dBFS) + 0.5–1.3 sn arası konuşma benzeri sinyal + sessizlik.
+    fn test_signal() -> Vec<f32> {
+        let n = (SR * 4.4) as usize;
+        let mut seed: u32 = 12345;
+        let noise_amp = db_to_lin(-56.0) * 3f32.sqrt();
+        (0..n)
+            .map(|i| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let white = ((seed >> 9) as f32 / 4_194_304.0 - 1.0) * noise_amp;
+                let t = i as f32 / SR;
+                let mut v = 0.0;
+                if (2.5..3.3).contains(&t) {
+                    let f0 = 140.0 + 15.0 * (2.0 * PI * 3.0 * t).sin();
+                    for k in 1..20 {
+                        v += (2.0 * PI * f0 * k as f32 * t).sin() / k as f32;
+                    }
+                    // hece zarfı + başta/sonda 30 ms yumuşatma
+                    let syl = 0.55 + 0.45 * (2.0 * PI * 4.0 * t).sin();
+                    let edge = ((t - 2.5) / 0.03).min((3.3 - t) / 0.03).clamp(0.0, 1.0);
+                    v *= 0.12 * syl * edge;
+                }
+                v + white
+            })
+            .collect()
+    }
+
+    fn run(p: &DspParams) -> Vec<f32> {
+        let (_tx, rx) = channel();
+        let mut chain = Chain::new(rx);
+        let x = test_signal();
+        let mut out = Vec::with_capacity(x.len());
+        let mut buf = [0.0f32; FRAME];
+        for c in x.chunks(FRAME) {
+            buf.fill(0.0);
+            buf[..c.len()].copy_from_slice(c);
+            chain.process(&mut buf, p);
+            out.extend_from_slice(&buf[..c.len()]);
+        }
+        out
+    }
+
+    /// [a, b) saniye aralığındaki 10 ms'lik pencerelerin en yüksek RMS'i (dBFS)
+    fn max_rms(y: &[f32], a: f32, b: f32) -> f32 {
+        let (s, e) = ((a * SR) as usize, (b * SR) as usize);
+        y[s..e]
+            .chunks(480)
+            .map(|c| lin_to_db((c.iter().map(|v| v * v).sum::<f32>() / c.len() as f32).sqrt()))
+            .fold(-200.0, f32::max)
+    }
+
+    fn report(name: &str, p: &DspParams) -> (f32, f32, f32) {
+        let y = run(p);
+        let before = max_rms(&y, 2.0, 2.48);
+        let tail = max_rms(&y, 3.33, 3.75);
+        let late = max_rms(&y, 3.9, 4.35);
+        let speech = max_rms(&y, 2.6, 3.2);
+        let frames: Vec<String> = y[(3.28 * SR) as usize..(3.78 * SR) as usize]
+            .chunks(480)
+            .map(|c| format!("{:.0}", lin_to_db((c.iter().map(|v| v * v).sum::<f32>() / c.len() as f32).sqrt())))
+            .collect();
+        println!("{name:>9} kuyruk/10ms: {}", frames.join(" "));
+        println!("{name:>9}: konuşma {speech:6.1} dB | önce {before:6.1} | KUYRUK {tail:6.1} | sonra {late:6.1}");
+        (before, tail, late)
+    }
+
+    #[test]
+    fn konusma_sonu_kuyrugu() {
+        let d = DspParams::default();
+        let mut studio = d;
+        apply_preset(&mut studio, 1);
+        let mut yayinci = d;
+        apply_preset(&mut yayinci, 2);
+        let mut no_reverb = studio;
+        no_reverb.rev_on = false;
+        let r = [report("varsayılan", &d), report("stüdyo", &studio), report("yayıncı", &yayinci), report("stüdyo-rev", &no_reverb)];
+        // konuşma bittikten 120 ms sonra çıkış pratikte sessiz olmalı (gürültü kuyruğu yok)
+        for (name, p) in [("varsayılan", d), ("stüdyo", studio), ("yayıncı", yayinci)] {
+            let y = run(&p);
+            let after = max_rms(&y, 3.42, 3.75);
+            assert!(after < -70.0, "{name}: konuşma sonrası kuyruk çok yüksek: {after:.1} dBFS");
+        }
+        let _ = r;
     }
 }

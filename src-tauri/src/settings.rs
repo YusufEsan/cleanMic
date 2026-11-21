@@ -89,7 +89,7 @@ impl Default for DspParams {
             hpf_on: true,
             gate_on: true,
             gate_thresh_db: -50.0,
-            gate_release_ms: 150.0,
+            gate_release_ms: 80.0,
             ai_on: true,
             ai_strength: 0.9,
             comp_on: true,
@@ -262,9 +262,9 @@ pub fn apply_preset(p: &mut DspParams, i: u8) {
     match p.preset {
         // ------------------------------------------------ temiz / stüdyo
         1 => {
-            // Stüdyo: sıcak alt, temiz orta, "hava" tizi, sıkı kompresör, minik plate reverb
+            // Stüdyo: sıcak alt, temiz orta, "hava" tizi, sıkı kompresör. Kuru (reverb yok):
+            // küçük oda reverb'ü konuşma sonundaki kalıntıyı metalik bir sese çeviriyordu.
             studio(p, 2.5, -1.5, 4.0, 3.5, 7.0, -32.0);
-            space(p, 0.07, 0.35, 0.0, 0.0);
         }
         2 => {
             // Yayıncı (radyo DJ): yakın mikrofon tokluğu, yoğun kompresyon, hafif tüp sıcaklığı
