@@ -59,6 +59,9 @@ pub struct DspParams {
     pub rev_on: bool,
     pub rev_mix: f32,
     pub rev_size: f32,
+    /// 0 parlak … 1 koyu
+    pub rev_damp: f32,
+    pub rev_predelay_ms: f32,
 
     pub dly_on: bool,
     pub dly_ms: f32,
@@ -125,6 +128,8 @@ impl Default for DspParams {
             rev_on: false,
             rev_mix: 0.2,
             rev_size: 0.55,
+            rev_damp: 0.35,
+            rev_predelay_ms: 0.0,
             dly_on: false,
             dly_ms: 280.0,
             dly_fb: 0.3,
@@ -196,8 +201,15 @@ pub fn apply_sound(dst: &mut DspParams, src: &DspParams) {
 pub fn apply_preset(p: &mut DspParams, i: u8) {
     let d = DspParams::default();
     if p.preset_space {
+        // mekân modundan çıkılıyor: reverb/delay kapanır ve ayarları varsayılana döner
         p.rev_on = false;
         p.dly_on = false;
+        p.rev_mix = d.rev_mix;
+        p.rev_size = d.rev_size;
+        p.rev_damp = d.rev_damp;
+        p.rev_predelay_ms = d.rev_predelay_ms;
+        p.dly_ms = d.dly_ms;
+        p.dly_fb = d.dly_fb;
         p.preset_space = false;
     }
     if p.preset_studio {
@@ -233,11 +245,15 @@ pub fn apply_preset(p: &mut DspParams, i: u8) {
         p.fx_band_hi = hi;
         p.fx_steep = steep;
     }
-    fn space(p: &mut DspParams, rev: f32, size: f32, dly_ms: f32, dly_fb: f32) {
+    /// Mekân: reverb miktarı, boyutu, koyuluğu, ön gecikmesi (ms) + isteğe bağlı eko
+    #[allow(clippy::too_many_arguments)]
+    fn space(p: &mut DspParams, rev: f32, size: f32, damp: f32, pre_ms: f32, dly_ms: f32, dly_fb: f32) {
         p.preset_space = true;
         p.rev_on = rev > 0.0;
         p.rev_mix = rev;
         p.rev_size = size;
+        p.rev_damp = damp;
+        p.rev_predelay_ms = pre_ms;
         p.dly_on = dly_ms > 0.0;
         if dly_ms > 0.0 {
             p.dly_ms = dly_ms;
@@ -328,7 +344,8 @@ pub fn apply_preset(p: &mut DspParams, i: u8) {
             p.fx_vib_hz = 0.6;
             p.fx_vib_st = 0.6;
             p.fx_tone = -0.2;
-            space(p, 0.55, 0.94, 420.0, 0.5);
+            // çok uzun, parlak, eterik kuyruk + uzun eko
+            space(p, 0.5, 0.96, 0.12, 0.0, 420.0, 0.5);
         }
         // ------------------------------------------------ cihaz
         12 => {
@@ -360,13 +377,15 @@ pub fn apply_preset(p: &mut DspParams, i: u8) {
         16 => {
             // Mağara: çok geniş yankı + taş yansıması
             p.fx_pitch = -1.0;
-            space(p, 0.5, 0.97, 160.0, 0.35);
+            // uzun ve koyu taş yankısı, kısa ön gecikme + tekrarlayan slapback
+            space(p, 0.45, 0.9, 0.55, 35.0, 160.0, 0.35);
         }
         17 => {
             // Stadyum spikeri: telli hoparlör tınısı + geniş salon + geri dönüş ekosu
             band(p, 250.0, 6_000.0, false);
             p.fx_drive = 1.0;
-            space(p, 0.32, 0.88, 230.0, 0.25);
+            // büyük açık alan: yankı uzak tribünden geç döner (90 ms ön gecikme)
+            space(p, 0.3, 0.8, 0.3, 90.0, 230.0, 0.25);
         }
         18 => {
             // Su altı: boğuk, dalgalanan, kabarcıklı
@@ -375,7 +394,8 @@ pub fn apply_preset(p: &mut DspParams, i: u8) {
             p.fx_vib_st = 0.8;
             p.fx_ring_hz = 4.0;
             p.fx_ring_mix = 0.35;
-            space(p, 0.3, 0.6, 0.0, 0.0);
+            // kısa, çok koyu ve boğuk
+            space(p, 0.35, 0.35, 0.9, 0.0, 0.0, 0.0);
         }
         19 => {
             // 8-bit: düşük çözünürlük ve örnekleme

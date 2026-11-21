@@ -272,7 +272,15 @@ struct FvAllpass {
 pub struct Reverb {
     combs: Vec<FvComb>,
     aps: Vec<FvAllpass>,
+    pre: Vec<f32>,
+    pre_i: usize,
+    lp: f32,
+    lp_a: f32,
+    last_damp: f32,
 }
+
+/// En uzun ön gecikme (200 ms)
+pub const REV_PRE_MAX: usize = 9_600;
 
 impl Reverb {
     pub fn new() -> Self {
@@ -285,15 +293,32 @@ impl Reverb {
             .iter()
             .map(|&n| FvAllpass { buf: vec![0.0; (n as f32 * scale) as usize], i: 0 })
             .collect();
-        Self { combs, aps }
+        Self { combs, aps, pre: vec![0.0; REV_PRE_MAX + 1], pre_i: 0, lp: 0.0, lp_a: 1.0, last_damp: f32::NAN }
     }
 
-    /// `size` 0..1, dönen değer sadece ıslak sinyal.
+    /// Dönen değer sadece ıslak sinyal.
+    /// - `size` 0..1: küçük oda (~0.3 sn) … katedral (~6 sn)
+    /// - `damp` 0..1: 0 parlak (taş, cam) … 1 çok koyu (halı, su altı)
+    /// - `pre` örnek: ön gecikme; uzak duvarlı büyük mekânlarda yankı geç başlar
     #[inline]
-    pub fn process(&mut self, x: f32, size: f32) -> f32 {
-        let fb = 0.70 + size * 0.28;
-        let damp = 0.35;
-        let inp = x * 0.015;
+    pub fn process(&mut self, x: f32, size: f32, damp: f32, pre: usize) -> f32 {
+        let fb = 0.55 + size.clamp(0.0, 1.0) * 0.43;
+        let damp = damp.clamp(0.0, 0.95);
+        // ön gecikme hattı
+        self.pre[self.pre_i] = x;
+        let d = pre.min(REV_PRE_MAX);
+        let r = (self.pre_i + self.pre.len() - d) % self.pre.len();
+        let x = self.pre[r];
+        self.pre_i = (self.pre_i + 1) % self.pre.len();
+        // Koyuluk girişe de uygulanır: Freeverb'ün sönümü yalnızca geri beslemede olduğu için
+        // ilk yansımalar hep parlak kalıyordu. Kesim frekansı 12 kHz (parlak) → ~1.3 kHz (koyu).
+        if self.last_damp.is_nan() || (damp - self.last_damp).abs() > 1e-4 {
+            let fc = 12_000.0 * 0.1f32.powf(damp);
+            self.lp_a = 1.0 - (-2.0 * PI * fc / SR).exp();
+            self.last_damp = damp;
+        }
+        self.lp += self.lp_a * (x - self.lp);
+        let inp = self.lp * 0.015;
         let mut out = 0.0;
         for c in self.combs.iter_mut() {
             let y = c.buf[c.i];

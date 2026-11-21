@@ -202,6 +202,7 @@ impl Chain {
         let comb_d = (p.fx_comb_ms * 0.001 * SR) as usize;
         let ring_inc = 2.0 * PI * p.fx_ring_hz / SR;
         let vib_inc = 2.0 * PI * p.fx_vib_hz / SR;
+        let rev_pre = (p.rev_predelay_ms.clamp(0.0, 200.0) * 0.001 * SR) as usize;
         let fx_t = if p.fx_on { 1.0 } else { 0.0 };
         let rev_t = if p.rev_on { p.rev_mix } else { 0.0 };
         let dly_t = if p.dly_on { 1.0 } else { 0.0 };
@@ -290,7 +291,7 @@ impl Chain {
 
             // Reverb ve delay: kuyrukları doğal sönsün diye girişleri kesilir, çıkışları değil
             self.g_rev = rev_t + (self.g_rev - rev_t) * k_smooth;
-            let wet = self.reverb.process(y * (self.g_rev > 0.0005) as u8 as f32, p.rev_size);
+            let wet = self.reverb.process(y * (self.g_rev > 0.0005) as u8 as f32, p.rev_size, p.rev_damp, rev_pre);
             y = y * (1.0 - self.g_rev * 0.4) + wet * self.g_rev;
 
             self.g_dly = dly_t + (self.g_dly - dly_t) * k_smooth;
@@ -401,6 +402,46 @@ mod tests {
         println!("{name:>9} kuyruk/10ms: {}", frames.join(" "));
         println!("{name:>9}: konuşma {speech:6.1} dB | önce {before:6.1} | KUYRUK {tail:6.1} | sonra {late:6.1}");
         (before, tail, late)
+    }
+
+    /// Bir mekân modunun reverb'ünü kısa bir patlamayla dener:
+    /// (yankının başladığı ms, 0.4 sn'deki seviye dB, 1.5 sn'deki seviye dB, parlaklık 0..1)
+    fn reverb_profile(preset: u8) -> (f32, f32, f32, f32) {
+        let mut p = DspParams::default();
+        apply_preset(&mut p, preset);
+        let mut r = Reverb::new();
+        let pre = (p.rev_predelay_ms * 0.001 * SR) as usize;
+        let n = (SR * 2.0) as usize;
+        let mut seed: u32 = 7;
+        let wet: Vec<f32> = (0..n)
+            .map(|i| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let x = if i < 480 { (seed >> 9) as f32 / 4_194_304.0 - 1.0 } else { 0.0 };
+                r.process(x, p.rev_size, p.rev_damp, pre)
+            })
+            .collect();
+        let onset = wet.iter().position(|v| v.abs() > 1e-4).unwrap_or(n) as f32 / SR * 1000.0;
+        let lvl = |t: f32| max_rms(&wet, t, t + 0.05);
+        // parlaklık: yüksek frekans (fark sinyali) enerjisinin toplam enerjiye oranı
+        let (s, e) = ((0.1 * SR) as usize, (0.5 * SR) as usize);
+        let tot: f32 = wet[s..e].iter().map(|v| v * v).sum();
+        let hi: f32 = wet[s..e].windows(2).map(|w| (w[1] - w[0]).powi(2)).sum::<f32>() / 4.0;
+        (onset, lvl(0.4), lvl(1.5), hi / tot.max(1e-12))
+    }
+
+    #[test]
+    fn mekan_modlari_farkli() {
+        let names = [(16u8, "Mağara"), (11, "Hayalet"), (17, "Stadyum"), (18, "Su altı")];
+        let prof: Vec<_> = names.iter().map(|&(i, n)| {
+            let r = reverb_profile(i);
+            println!("{n:>8}: başlangıç {:5.0} ms | 0.4 sn {:6.1} dB | 1.5 sn {:6.1} dB | parlaklık {:.3}", r.0, r.1, r.2, r.3);
+            r
+        }).collect();
+        let (magara, hayalet, stadyum, su) = (prof[0], prof[1], prof[2], prof[3]);
+        assert!(stadyum.0 > magara.0 + 40.0, "stadyumun ön gecikmesi belirgin olmalı");
+        assert!(hayalet.2 > su.2 + 20.0, "hayalet kuyruğu su altından çok daha uzun olmalı");
+        assert!(hayalet.3 > su.3 * 2.0, "hayalet su altından belirgin parlak olmalı");
+        assert!(magara.2 > su.2 + 15.0, "mağara su altından uzun olmalı");
     }
 
     #[test]

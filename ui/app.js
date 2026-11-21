@@ -47,7 +47,8 @@ const PEDALS = [
             { p: "fx_tone", l: "TON", min: -1, max: 1, step: 0.05, f: fmt.tone, def: 0 }] },
   { name: "Reverb", sub: "ODA · SALON", color: "#7A4A1E", on: "rev_on",
     knobs: [{ p: "rev_mix", l: "MİKTAR", min: 0, max: 1, step: 0.01, f: fmt.pct, def: 0.2 },
-            { p: "rev_size", l: "BOYUT", min: 0, max: 1, step: 0.01, f: fmt.pct, def: 0.55 }] },
+            { p: "rev_size", l: "BOYUT", min: 0, max: 1, step: 0.01, f: fmt.pct, def: 0.55 },
+            { p: "rev_damp", l: "KOYU", min: 0, max: 0.95, step: 0.01, f: fmt.pct, def: 0.35 }] },
   { name: "Delay", sub: "EKO", color: "#5E5220", on: "dly_on",
     knobs: [{ p: "dly_ms", l: "SÜRE", min: 20, max: 800, step: 10, f: fmt.ms, def: 280 },
             { p: "dly_fb", l: "TEKRAR", min: 0, max: 0.9, step: 0.01, f: fmt.pct, def: 0.3 }] },
@@ -836,7 +837,7 @@ function mockInvoke(cmd, args) {
   const D = mockInvoke.dsp || (mockInvoke.dsp = {
     in_gain_db: 0, channel: 0, hpf_on: true, gate_on: true, gate_thresh_db: -50, gate_release_ms: 150, ai_on: true, ai_strength: 0.9,
     comp_on: true, comp_ratio: 3, comp_makeup_db: 6, eq_on: true, eq_low_db: 0, eq_mid_db: 2, eq_high_db: -1, deess_on: true,
-    deess_thresh_db: -30, deess_amount: 0.6, fx_on: true, preset: 0, fx_pitch: 0, fx_tone: 0, rev_on: false, rev_mix: 0.2, rev_size: 0.55,
+    deess_thresh_db: -30, deess_amount: 0.6, fx_on: true, preset: 0, fx_pitch: 0, fx_tone: 0, rev_on: false, rev_mix: 0.2, rev_size: 0.55, rev_damp: 0.35, rev_predelay_ms: 0,
     dly_on: false, dly_ms: 280, dly_fb: 0.3, lim_on: true, lim_ceiling_db: -1, lim_release_ms: 80, master_db: 0, mute: false,
     monitor_on: false, monitor_src: 0, monitor_db: -6, sb_volume_db: -6, sb_to_monitor: true, duck_on: true, duck_db: -10, buffer_ms: 20 });
   const r = {
