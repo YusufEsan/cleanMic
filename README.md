@@ -71,13 +71,13 @@ Düğmeleri **yukarı/aşağı sürükleyerek** çevir (Shift = ince ayar), **fa
 
 | Pedal | Ne yapar | Düğmeler |
 | --- | --- | --- |
-| **Gate** | Konuşmadığında mikrofonu tamamen susturur. | Eşik, bırakma süresi |
+| **Gate** | Konuşmadığında mikrofonu tamamen susturur. RNNoise'un ses algılamasına bağlıdır: cümle bitince 25 ms'de kapanır, kelime aralarında yumuşak kalır. | Eşik, bırakma süresi |
 | **Temiz AI** | RNNoise yapay zekâsıyla fan, klavye, oda uğultusu ve cızırtıyı siler. "SES" ışığı konuştuğunu algıladığını gösterir. | Güç |
 | **Kompresör** | Fısıltı ile bağırış arasındaki farkı azaltır, sesi toparlar. | Oran, kazanç |
 | **EQ** | 3 bant ton ayarı: bas (150 Hz), orta (1.5 kHz), tiz (6 kHz). | Bas, orta, tiz |
 | **De-esser** | Condenser mikrofonun keskin "s/ş" seslerini yumuşatır. | Eşik, miktar |
 | **Ses FX** | Seçili ses modunu uygular (perde, ton, distorsiyon, filtre…). | Pitch, ton |
-| **Reverb** | Oda / salon yankısı. | Miktar, boyut |
+| **Reverb** | Oda, salon, mağara yankısı. Boyut küçük odadan katedrale kadar; koyuluk taş/cam (parlak) ile halı/su (boğuk) arasında. | Miktar, boyut, koyuluk |
 | **Delay** | Eko. | Süre, tekrar |
 | **Limiter** | Sesin tavanı asla aşmasını engeller; bağırınca **patlama olmaz**. | Tavan, hız |
 
@@ -90,10 +90,10 @@ PITCH ve TON düğmeleriyle ince ayar yap.
 
 | Sekme | Modlar |
 | --- | --- |
-| **Temiz** | Doğal · **Stüdyo** (sıcak alt, parlak "hava", sıkı kompresör, hafif plate reverb) · **Yayıncı** (radyo DJ tokluğu) · **Podcast** (net, doğal) |
+| **Temiz** | Doğal · **Stüdyo** (sıcak alt, parlak "hava", sıkı kompresör, 25 ms ön gecikmeli ince plate reverb) · **Yayıncı** (radyo DJ tokluğu) · **Podcast** (net, doğal, kuru) |
 | **Karakter** | Robot · Derin · Sincap · Kız sesi · Çocuk · Canavar · Uzaylı · Hayalet |
 | **Cihaz** | Radyo (eski AM) · Telefon · Telsiz · Megafon |
-| **Ortam** | Mağara · Stadyum · Su altı · 8-bit |
+| **Ortam** | **Mağara** (uzun, koyu taş yankı + slapback) · **Stadyum** (yankı uzak tribünden 90 ms sonra döner) · **Su altı** (kısa, çok boğuk, dalgalı) · **8-bit** |
 | **Benim** | Kendi kaydettiğin modlar |
 
 **Kendi modunu kaydetmek:** Pedalları istediğin gibi ayarla → **＋ Sesimi kaydet** → isim ver.
@@ -173,6 +173,9 @@ Kısayollar oyun içindeyken de çalışır (global).
 - **Yumuşak geçişler:** kesinti olursa ses sertçe kesilmez, sönerek susar ve yumuşakça geri gelir.
   Pedal açma/kapama, sessize alma ve mod geçişleri de tıklamasızdır.
 - **İleri bakışlı limiter:** 2 ms önceden bakarak tepe değerleri yakalar; dijital kırpma olmaz.
+- **Konuşma sonu kuyruğu yok:** cümle bitince RNNoise'un sönen kalıntısı kompresörle yükseltilip
+  "pşşt" gibi duyulmasın diye gate yapay zekânın ses algılamasıyla 25 ms'de kapanır, kompresör de
+  -55 dB altını yükseltmek yerine kısar. Bu davranış otomatik testle korunur.
 - **Pro Audio önceliği:** ses thread'leri Windows MMCSS "Pro Audio" sınıfında çalışır; oyun CPU'yu
   doldursa bile ses zamanında işlenir.
 - Üst barda **Kesinti** (oyuna giden çıkış) ve **Kulaklık** sayaçları gerçek kesinti sayısını gösterir.
@@ -200,7 +203,10 @@ Gerekenler: Rust (MSVC toolchain; `rust-toolchain.toml` otomatik seçer), Node.j
 npm install
 npm run dev      # geliştirme (değişince yeniden derler)
 npm run build    # src-tauri\target\release\bundle\nsis\CleanMic_x.y.z_x64-setup.exe
+cd src-tauri; cargo test --release   # ses zinciri testleri (konuşma sonu kuyruğu, mekân reverb'leri)
 ```
+
+Sürüm geçmişi: [CHANGELOG.md](CHANGELOG.md)
 
 ```
 src-tauri/src/
