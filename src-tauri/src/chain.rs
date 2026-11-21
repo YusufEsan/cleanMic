@@ -455,7 +455,11 @@ mod tests {
         no_reverb.rev_on = false;
         let r = [report("varsayılan", &d), report("stüdyo", &studio), report("yayıncı", &yayinci), report("stüdyo-rev", &no_reverb)];
         // konuşma bittikten 120 ms sonra çıkış pratikte sessiz olmalı (gürültü kuyruğu yok)
-        for (name, p) in [("varsayılan", d), ("stüdyo", studio), ("yayıncı", yayinci)] {
+        // (Stüdyo'nun bilinçli plate kuyruğu ayrı ölçülür; burada gate'in gürültü kuyruğu sınanır)
+        let y = run(&studio);
+        let plate = max_rms(&y, 3.75, 4.1);
+        assert!(plate < -70.0, "stüdyo plate reverb'ü kısa olmalı: {plate:.1} dBFS");
+        for (name, p) in [("varsayılan", d), ("stüdyo-kuru", no_reverb), ("yayıncı", yayinci)] {
             let y = run(&p);
             let after = max_rms(&y, 3.42, 3.75);
             assert!(after < -70.0, "{name}: konuşma sonrası kuyruk çok yüksek: {after:.1} dBFS");

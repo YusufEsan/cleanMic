@@ -278,9 +278,11 @@ pub fn apply_preset(p: &mut DspParams, i: u8) {
     match p.preset {
         // ------------------------------------------------ temiz / stüdyo
         1 => {
-            // Stüdyo: sıcak alt, temiz orta, "hava" tizi, sıkı kompresör. Kuru (reverb yok):
-            // küçük oda reverb'ü konuşma sonundaki kalıntıyı metalik bir sese çeviriyordu.
+            // Stüdyo: sıcak alt, temiz orta, "hava" tizi, sıkı kompresör + ince plate reverb.
+            // 25 ms ön gecikme sesi netleştirir (yankı konuşmanın üstüne binmez), kısa ve
+            // hafif parlak kuyruk "prodüksiyon" hissi verir; miktar düşük, dikkat çekmez.
             studio(p, 2.5, -1.5, 4.0, 3.5, 7.0, -32.0);
+            space(p, 0.08, 0.42, 0.25, 25.0, 0.0, 0.0);
         }
         2 => {
             // Yayıncı (radyo DJ): yakın mikrofon tokluğu, yoğun kompresyon, hafif tüp sıcaklığı
