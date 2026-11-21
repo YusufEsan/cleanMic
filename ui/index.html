@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CleanMic</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="rack">
+    <div class="brand">
+      <span class="logo">CleanMic<span class="dot">.</span></span>
+      <span class="model">VOCAL PEDALBOARD · CM-1</span>
+    </div>
+
+    <div class="path" aria-label="Sinyal yolu">
+      <span class="chip" id="chip-in">Mikrofon</span>
+      <span class="wire" aria-hidden="true"></span>
+      <span class="chip chip-hot" id="chip-out">CABLE Input</span>
+    </div>
+
+    <div class="status" id="status">
+      <span><b id="st-lat">–</b> ms gecikme</span>
+      <span>CPU <b id="st-cpu">–</b></span>
+      <span title="Oyuna giden sanal çıkıştaki kesintiler">Kesinti <b id="st-under">0</b></span>
+      <span title="Kulaklık (canlı dinleme) çıkışındaki kesintiler">Kulaklık <b id="st-mon-under">0</b></span>
+    </div>
+
+    <div class="rack-right">
+      <div class="vu" title="Çıkış seviyesi">
+        <svg viewBox="0 0 150 84" role="img" aria-label="Çıkış VU metre">
+          <path d="M25 70 A55 55 0 0 1 125 70" fill="none" stroke="#3B332A" stroke-width="1.5"/>
+          <path d="M105 33 A55 55 0 0 1 125 70" fill="none" stroke="#D9461A" stroke-width="4"/>
+          <text x="20" y="22">-20</text><text x="68" y="14">-7</text><text x="118" y="26" fill="#D9461A">0</text>
+          <text x="60" y="80" class="vu-label">VU OUT</text>
+          <line id="needle" x1="75" y1="78" x2="75" y2="22" stroke="#0F0D0B" stroke-width="2" stroke-linecap="round" transform="rotate(-60 75 78)"/>
+        </svg>
+      </div>
+      <button class="round-btn" id="btn-mute" aria-pressed="false" title="Sustur (Ctrl+Alt+M)">
+        <span class="power-led"></span>
+        <span class="sr">Mikrofonu sustur</span>
+      </button>
+      <button class="icon-btn" id="btn-settings" aria-label="Ayarlar">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h0a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5h0a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v0a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <section class="board" id="board" aria-label="Efekt pedalları"></section>
+
+  <div class="lower">
+    <div class="col">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Ses FX kanal seçici</h2>
+          <button class="btn btn-sm" id="btn-save-preset" title="Şu anki pedal ayarlarını kendi modun olarak kaydet">＋ Sesimi kaydet</button>
+        </div>
+        <div class="ptabs" role="tablist" aria-label="Mod kategorileri" id="ptabs"></div>
+        <div class="presets" id="presets" role="tabpanel"></div>
+        <form class="save-form" id="save-form" hidden>
+          <input id="save-name" maxlength="18" placeholder="Modunun adı (ör. Gece yayını)" aria-label="Kaydedilecek modun adı" autocomplete="off">
+          <button class="btn btn-hot" type="submit">Kaydet</button>
+          <button class="btn" type="button" id="save-cancel">Vazgeç</button>
+        </form>
+        <span class="hint" id="preset-hint">Ctrl+Alt+F1…F12 · Ctrl+Alt+Shift+F1…F8</span>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Sampler</h2>
+          <span class="hint">Ctrl+Alt+1…8 · durdur Ctrl+Alt+0 · sağ tık: değiştir</span>
+        </div>
+        <div class="pads" id="pads"></div>
+      </section>
+    </div>
+
+    <section class="panel bench">
+      <div class="panel-head">
+        <h2>Test tezgâhı</h2>
+        <button class="btn" id="btn-diag">Teşhis et</button>
+      </div>
+
+      <div class="scopes">
+        <div class="scope" id="scope-raw">
+          <div class="scope-head"><span class="scope-label">HAM SİNYAL</span><span class="scope-db" id="db-raw">–∞</span></div>
+          <canvas id="wave-raw" role="img" aria-label="Ham mikrofon sesinin canlı dalga formu"></canvas>
+          <span class="scope-empty">sinyal yok</span>
+        </div>
+        <div class="scope" id="scope-out">
+          <div class="scope-head"><span class="scope-label">TEMİZ ÇIKIŞ</span><span class="scope-db" id="db-out">–∞</span></div>
+          <canvas id="wave-out" role="img" aria-label="İşlenmiş sesin canlı dalga formu"></canvas>
+          <span class="scope-empty">sinyal yok</span>
+        </div>
+      </div>
+
+      <div class="bench-row">
+        <div class="card">
+          <div class="card-head"><span class="card-title">Canlı dinleme</span><span class="hint">Ctrl+Alt+L</span></div>
+          <button class="switch" id="btn-monitor" aria-pressed="false">
+            <span class="sw-led"></span><span class="sw-text" id="mon-label">Kulaklığa ver</span>
+          </button>
+          <div class="seg seg-full" role="group" aria-label="Dinlenen kaynak">
+            <button id="ab-raw" aria-pressed="false">A · Ham</button>
+            <button id="ab-out" aria-pressed="true">B · Temiz</button>
+          </div>
+          <label class="slider"><span>Kulaklık seviyesi <b id="mon-val"></b></span>
+            <input type="range" id="mon-vol" min="-40" max="6" step="1"></label>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">Kaydet ve karşılaştır</span><span class="hint">10 sn</span></div>
+          <button class="rec" id="btn-rec">
+            <span class="rec-fill" id="rec-fill"></span>
+            <span class="rec-dot"></span><span id="rec-label">Kaydet</span>
+          </button>
+          <div class="seg seg-full" role="group" aria-label="Kaydı dinle">
+            <button id="play-raw" disabled>▶ Ham</button>
+            <button id="play-clean" disabled>▶ Temiz</button>
+            <button id="play-stop" class="seg-icon" disabled aria-label="Durdur">■</button>
+          </div>
+          <p class="card-note" id="rec-note">Konuş, sonra aynı kaydı ham ve temiz hâliyle dinle.</p>
+        </div>
+      </div>
+      <p class="tip" id="bench-tip">Canlı dinlemede kulaklık kullan; hoparlör sesi mikrofona geri girer.</p>
+    </section>
+  </div>
+</div>
+
+<dialog id="dlg-diag" class="modal modal-lg" aria-labelledby="diag-title">
+  <form method="dialog" class="modal-form">
+    <div class="modal-head">
+      <span class="ask-icon" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+      </span>
+      <div class="modal-title"><h2 id="diag-title">Mikrofon teşhisi</h2><span class="hint">3 sn sessizlik + 5 sn konuşma</span></div>
+      <button class="icon-btn close-x" value="close" aria-label="Kapat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="diag-body"></div>
+    <div class="modal-foot">
+      <button class="btn" value="close">Kapat</button>
+      <button class="btn btn-hot" id="diag-apply" type="button" hidden>Önerileri uygula</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-settings" class="rack-dlg" aria-labelledby="set-title">
+  <form method="dialog" class="dlg rack-panel">
+    <div class="rack-head">
+      <span class="screw" aria-hidden="true"></span>
+      <div class="rack-title">
+        <h2 id="set-title">Ayarlar</h2>
+        <span class="model">SETUP · CM-1</span>
+      </div>
+      <button class="icon-btn close-x" value="close" aria-label="Ayarları kapat">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <span class="screw" aria-hidden="true"></span>
+    </div>
+
+    <section class="set-sec">
+      <div class="sec-head"><h3>Sinyal yolu</h3><span class="hint">Mikrofon → CleanMic → oyun / kulaklık</span></div>
+      <div class="route">
+        <div class="route-node">
+          <label class="field"><span class="field-label"><span class="jack" aria-hidden="true"></span>Mikrofon girişi</span>
+            <select id="sel-in"></select></label>
+          <div class="field">
+            <span class="field-label">UM2 kanalı</span>
+            <div class="seg seg-full" role="group" aria-label="UM2 kanalı" id="seg-ch">
+              <button type="button" data-ch="0">Giriş 1 · XLR</button>
+              <button type="button" data-ch="1">Giriş 2</button>
+              <button type="button" data-ch="2">Karışık</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="route-core" aria-hidden="true">
+          <span class="route-wire"></span>
+          <span class="route-box">CleanMic<span class="dot">.</span></span>
+          <span class="route-wire"></span>
+        </div>
+
+        <div class="route-node">
+          <label class="field"><span class="field-label"><span class="jack hot" aria-hidden="true"></span>Sanal çıkış · oyun ve Discord</span>
+            <select id="sel-out"></select></label>
+          <label class="field"><span class="field-label"><span class="jack" aria-hidden="true"></span>Kulaklık · canlı dinleme</span>
+            <select id="sel-mon"></select></label>
+        </div>
+      </div>
+      <div class="route-foot">
+        <span class="dirty" id="dev-dirty" hidden><span class="led on"></span>Cihaz değişikliği uygulanmadı</span>
+        <button class="btn btn-hot" id="btn-apply-dev" type="button" disabled>Cihazları uygula</button>
+      </div>
+    </section>
+
+    <section class="set-sec">
+      <div class="sec-head"><h3>Seviyeler</h3><span class="hint">sürükle · tekerlek · çift tık = sıfırla</span></div>
+      <div class="set-knobs" id="set-knobs"></div>
+    </section>
+
+    <section class="set-sec">
+      <div class="sec-head"><h3>Davranış</h3></div>
+      <div class="toggles">
+        <button type="button" class="led-toggle" data-p="hpf_on"><span class="led"></span><span><b>Uğultu filtresi</b><small>80 Hz altını keser: masa titreşimi, klima, fan</small></span></button>
+        <button type="button" class="led-toggle" data-p="duck_on"><span class="led"></span><span><b>Ducking</b><small>Sampler çalarken mikrofonu kısar</small></span></button>
+        <button type="button" class="led-toggle" data-p="sb_to_monitor"><span class="led"></span><span><b>Sampler'ı kulaklıkta çal</b><small>Çaldığın sesi sen de duyarsın</small></span></button>
+        <button type="button" class="led-toggle" id="tg-autostart"><span class="led"></span><span><b>Windows ile başlat</b><small>Açılışta tepside sessizce çalışır</small></span></button>
+      </div>
+    </section>
+
+    <p class="rack-tip">Oyunda ve Discord'da mikrofon olarak <span class="kbd">CABLE Output</span> seç; Discord'da Krisp, yankı engelleme ve otomatik kazancı kapat.</p>
+  </form>
+</dialog>
+
+<dialog id="dlg-ask" class="modal modal-sm" aria-labelledby="ask-title">
+  <form method="dialog" class="modal-form">
+    <div class="modal-head">
+      <span class="ask-icon" id="ask-icon" aria-hidden="true"></span>
+      <div class="modal-title"><h2 id="ask-title"></h2></div>
+      <button class="icon-btn close-x" value="cancel" aria-label="Kapat">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="ask-text" id="ask-text"></p>
+      <input id="ask-input" maxlength="18" autocomplete="off" hidden>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" value="cancel" id="ask-cancel">Vazgeç</button>
+      <button class="btn btn-hot" value="ok" id="ask-ok">Tamam</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="menu" id="ctx-menu" role="menu" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

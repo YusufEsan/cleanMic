@@ -1,0 +1,10 @@
+# bağımlılıklar ve derleme çıktıları
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+
+# yerel araçlar
+.claude/
+*.log
+.DS_Store
+Thumbs.db
