@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CleanMic",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "com.cleanmic.app",
   "build": {
     "frontendDist": "../ui"
@@ -27,11 +27,27 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "publisher": "YusufEsan",
+    "copyright": "© 2026 YusufEsan",
+    "category": "Utility",
+    "shortDescription": "Gerçek zamanlı mikrofon temizleyici ve ses efekti pedalboard'u",
+    "longDescription": "CleanMic mikrofon sesini yapay zekâ ile temizler, seviyesini dengeler, isteğe bağlı efekt ekler ve VB-Audio Virtual Cable üzerinden oyunlara ve Discord'a sanal mikrofon olarak verir.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["Turkish"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerHooks": "installer/hooks.nsh"
+      }
+    }
   }
 }

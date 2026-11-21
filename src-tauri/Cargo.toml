@@ -1,6 +1,6 @@
 [package]
 name = "cleanmic"
-version = "0.1.0"
+version = "0.2.0"
 description = "Gerçek zamanlı mikrofon temizleyici ve efekt pedalboard'u"
 edition = "2021"
 

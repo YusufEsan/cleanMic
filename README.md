@@ -49,7 +49,10 @@ Toplam gecikme genelde **25–40 ms** arasındadır; konuşmada fark edilmez.
    Zip'i çıkar, `VBCABLE_Setup_x64.exe` → sağ tık → **Yönetici olarak çalıştır** → *Install Driver*.
    Ardından **bilgisayarı yeniden başlat**.
 2. **CleanMic**'i kur: [Releases](https://github.com/YusufEsan/cleanMic/releases) sayfasından
-   `CleanMic_x.y.z_x64-setup.exe` dosyasını indirip çalıştır.
+   `CleanMic_x.y.z_x64-setup.exe` dosyasını indirip çalıştır. Türkçe kurulum sihirbazı yönetici
+   izni istemez; Başlat menüsüne ekler, isteğe bağlı masaüstü kısayolu oluşturur ve bitince uygulamayı
+   başlatabilir. VB-Cable kurulu değilse kurulumun sonunda uyarıp indirme sayfasını açmayı teklif eder.
+   Kaldırmak için: *Ayarlar › Uygulamalar › CleanMic › Kaldır*.
 3. **Oyunda ve Discord'da** mikrofon olarak **CABLE Output (VB-Audio Virtual Cable)** seç.
    Hoparlör olarak kulaklığını bırak; **asla CABLE Input seçme**, yoksa karşı taraf kendini duyar.
 4. **Discord'da** *Gürültü engelleme (Krisp)*, *Yankı engelleme* ve *Otomatik kazanç kontrolü*nü kapat.
