@@ -160,9 +160,10 @@ fn get_state(app: St, h: AppHandle) -> Value {
     })
 }
 
+/// Cihaz taraması yavaş olabilir (WASAPI); async olduğu için ana thread'i/pencereyi dondurmaz.
 #[tauri::command]
-fn list_devices() -> Result<engine::DeviceList, String> {
-    engine::list_devices()
+async fn list_devices() -> Result<engine::DeviceList, String> {
+    tauri::async_runtime::spawn_blocking(engine::list_devices).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -673,10 +674,20 @@ fn main() {
         })
         .on_window_event(|w, e| {
             // pencere kapatılınca tepsiye küçül, ses çalışmaya devam etsin
-            if let WindowEvent::CloseRequested { api, .. } = e {
-                api.prevent_close();
-                let _ = w.hide();
-                w.state::<Arc<App>>().ui_active.store(false, Relaxed);
+            let app = w.state::<Arc<App>>();
+            match e {
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = w.hide();
+                    app.ui_active.store(false, Relaxed);
+                }
+                // küçültme/geri yükleme Resized olayıyla gelir
+                WindowEvent::Resized(_) | WindowEvent::Focused(_) => {
+                    let minimized = w.is_minimized().unwrap_or(false);
+                    let visible = w.is_visible().unwrap_or(true);
+                    app.ui_active.store(visible && !minimized, Relaxed);
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![

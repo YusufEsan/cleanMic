@@ -212,6 +212,10 @@ button { cursor: pointer; }
 dialog[open] { animation: dlg-in .14s ease-out; }
 @keyframes dlg-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 
+.suggest { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 4px; }
+.suggest-title { width: 100%; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.chip-s { font-family: var(--mono); font-size: 11px; padding: 4px 8px; border-radius: 6px; background: #3A2A1C; color: var(--hot-soft); border: 1px solid #5A3A22; }
+
 /* ---------------------------------------------------------------- sağ tık menüsü */
 .menu {
   position: fixed; z-index: 50; min-width: 220px; padding: 6px; border-radius: 12px;

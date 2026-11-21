@@ -531,7 +531,6 @@ let needleDb = -60;
 let clipSeen = 0, clipWarnUntil = 0;
 let lastAng = "";
 function onMeters(m) {
-  if (document.hidden) return;
   // VU iğnesi: -20..+3 dB → -60..+60 derece
   const target = Math.max(-30, m.out_db);
   needleDb = target > needleDb ? target : needleDb * 0.85 + target * 0.15;
@@ -573,6 +572,19 @@ function onMeters(m) {
 }
 
 // ------------------------------------------------------------------ teşhis
+const SUGGEST_LABEL = {
+  gate_thresh_db: (v) => `Gate eşiği ${v} dB`,
+  gate_on: (v) => (v ? "Gate açık" : "Gate kapalı"),
+  ai_on: (v) => (v ? "Temiz AI açık" : "Temiz AI kapalı"),
+  ai_strength: (v) => `Temiz AI gücü %${Math.round(v * 100)}`,
+  in_gain_db: (v) => `Giriş kazancı +${v} dB`,
+  buffer_ms: (v) => `Tampon ${v} ms`,
+};
+function suggestText(s) {
+  const items = Object.entries(s || {}).map(([k, v]) => (SUGGEST_LABEL[k] ? SUGGEST_LABEL[k](v) : `${k}: ${v}`));
+  if (!items.length) return "";
+  return `<div class="suggest"><span class="suggest-title">"Önerileri uygula" şunları ayarlar</span>${items.map((t) => `<span class="chip-s">${escapeHtml(t)}</span>`).join("")}</div>`;
+}
 function bindDiag() {
   const dlg = $("#dlg-diag"), body = $("#diag-body"), applyBtn = $("#diag-apply");
   let suggest = null, timer = null;
@@ -609,7 +621,7 @@ function bindDiag() {
           <div class="finding ${f.level}"><span class="tag">${tag[f.level]}</span>
             <div><b>${escapeHtml(f.title)}</b><p>${escapeHtml(f.detail)}</p></div></div>`).join("")}
         </div>
-        <p class="tip">Öneriler: ${Object.entries(r.suggest).map(([k, v]) => `${k} = ${v}`).join(", ")}</p>`;
+        ${suggestText(r.suggest)}`;
       applyBtn.hidden = false;
     } else if (m.phase === "error") {
       body.innerHTML = `<p class="tip">Teşhis başarısız: ${escapeHtml(m.error)}</p>`;
@@ -654,26 +666,45 @@ function checkDevDirty() {
   $("#btn-apply-dev").disabled = !dirty;
 }
 
-async function openSettings() {
-  const dlg = $("#dlg-settings");
-  let list = { inputs: [], outputs: [] };
-  try { list = await invoke("list_devices"); } catch (e) { console.error(e); }
-  const st = await invoke("get_state");
-  const s = st.settings, info = st.status.info || {};
+let deviceCache = null;
+
+function fillDeviceSelects(list, s, info) {
   const fill = (sel, items, cur, auto) => {
     sel.innerHTML = "";
     sel.appendChild(new Option(auto, ""));
     items.forEach((n) => sel.appendChild(new Option(n, n)));
+    // listede olmayan kayıtlı cihaz (ör. çıkarılmış) yine de görünsün
+    if (cur && !items.includes(cur)) sel.appendChild(new Option(`${cur} (bağlı değil)`, cur));
     sel.value = cur || "";
   };
   fill($("#sel-in"), list.inputs, s.input_device, `Otomatik · ${info.input || "UM2"}`);
   fill($("#sel-out"), list.outputs.filter((n) => !/16ch/i.test(n)), s.output_device, `Otomatik · ${info.output || "CABLE Input"}`);
   fill($("#sel-mon"), list.outputs.filter((n) => !/cable/i.test(n)), s.monitor_device, `Windows varsayılanı · ${info.monitor || "yok"}`);
+}
+
+async function openSettings() {
+  const dlg = $("#dlg-settings");
+  // 1) pencere hemen açılır: bilinen değerlerle doldur
+  const info = status.info || {};
+  const known = { input_device: devOrig?.input ?? null, output_device: devOrig?.output ?? null, monitor_device: devOrig?.monitor ?? null };
+  fillDeviceSelects(deviceCache || { inputs: [], outputs: [] }, known, info);
   devOrig = devSelection();
   checkDevDirty();
-  $("#tg-autostart").setAttribute("aria-pressed", !!st.autostart);
   paintSettings();
   dlg.showModal();
+  // 2) güncel durum ve cihaz listesi arka planda gelir
+  const [st, list] = await Promise.all([
+    invoke("get_state"),
+    invoke("list_devices").catch(() => deviceCache || { inputs: [], outputs: [] }),
+  ]);
+  deviceCache = list;
+  $("#tg-autostart").setAttribute("aria-pressed", !!st.autostart);
+  // kullanıcı bu arada seçim değiştirmediyse listeyi tazele
+  if ($("#btn-apply-dev").disabled) {
+    fillDeviceSelects(list, st.settings, st.status.info || {});
+    devOrig = devSelection();
+    checkDevDirty();
+  }
 }
 
 function bindSettings() {
@@ -770,6 +801,9 @@ async function init() {
   dsp = st.settings.dsp;
   presetNames = st.presets;
   customPresets = st.settings.custom_presets || [];
+  devOrig = { input: st.settings.input_device ?? null, output: st.settings.output_device ?? null, monitor: st.settings.monitor_device ?? null };
+  // ayarlar penceresi anında açılsın diye cihaz listesini önceden çek
+  invoke("list_devices").then((l) => (deviceCache = l)).catch(() => {});
   pads = st.settings.pads;
   status = st.status;
   buildBoard();
@@ -791,10 +825,9 @@ async function init() {
   listen("status", ({ payload }) => { status = payload; paintStatus(); });
   listen("pad", ({ payload }) => flashPad(payload));
   drawWaves();
-  // pencere küçültülünce/gizlenince backend metre göndermeyi bıraksın
-  document.addEventListener("visibilitychange", () => {
-    invoke("set_ui_active", { active: !document.hidden }).catch(() => {});
-  });
+  // Görünürlük Rust tarafında pencere olaylarından izlenir (WebView2'nin document.hidden
+  // değeri gizli başlatılan pencerede takılı kalabiliyor). Açılışta etkin olduğumuzu bildir.
+  invoke("set_ui_active", { active: true }).catch(() => {});
 }
 init();
 
@@ -819,7 +852,25 @@ function mockInvoke(cmd, args) {
   }[cmd];
   return Promise.resolve(r ? r() : null);
 }
+// Tarayıcı önizlemesinde ekran görüntüsü için: ?shot=settings | diag | char | mine
+const SHOT = new URLSearchParams(location.search).get("shot");
+if (!T && SHOT) {
+  setTimeout(() => {
+    if (SHOT === "settings") openSettings();
+    if (SHOT === "diag") $("#btn-diag").click();
+    if (SHOT === "char" || SHOT === "mine") { ptab = SHOT; buildPresets(); }
+  }, 300);
+}
+
 function mockListen(name, cb) {
+  if (name === "diag" && SHOT === "diag") setTimeout(() => cb({ payload: { phase: "done", report: {
+    noise_db: -61, hum_pct: 8, speech_peak_db: -9, speech_rms_db: -27, clip_pct: 0,
+    findings: [
+      { level: "ok", title: "Ses seviyesi iyi", detail: "Konuşma tepe seviyesi -9 dBFS." },
+      { level: "ok", title: "Sessiz ortam", detail: "Gürültü tabanı -61 dBFS." },
+      { level: "warn", title: "Mikrofon 48 kHz değil", detail: "UM2 şu an 44100 Hz çalışıyor. Ses paneli › Kayıt › UM2 › Özellikler › Gelişmiş bölümünden \"2 kanal, 24 bit, 48000 Hz\" seç." },
+    ],
+    suggest: { gate_thresh_db: -49, gate_on: true, ai_on: true } } } }), 700);
   if (name === "meters") setInterval(() => {
     const t = Date.now() / 400;
     const talk = (i) => (Math.sin(i / 9 + t) > 0.2 ? Math.sin(i * 0.9 + t * 7) * 0.4 * Math.sin(i / 18) : 0);

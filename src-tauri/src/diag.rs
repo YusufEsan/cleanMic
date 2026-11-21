@@ -1,4 +1,4 @@
-//! TeÅŸhis sihirbazÄ± ve canlÄ± spektrum.
+//! Teşhis sihirbazı ve canlı spektrum.
 
 use std::f32::consts::PI;
 
@@ -26,7 +26,7 @@ pub struct Report {
     pub speech_rms_db: f32,
     pub clip_pct: f32,
     pub findings: Vec<Finding>,
-    /// "Uygula" dÃ¼ÄŸmesinin set_dsp'ye gÃ¶ndereceÄŸi Ã¶neriler
+    /// "Uygula" düğmesinin set_dsp'ye göndereceği öneriler
     pub suggest: Value,
 }
 
@@ -48,12 +48,19 @@ fn f(level: &'static str, title: &str, detail: String) -> Finding {
 }
 
 pub fn analyze(silence: &[f32], speech: &[f32], info: &EngineInfo, underruns: u64, cpu: f32, p: &DspParams) -> Report {
-    // ilk 300 ms'yi at (butona tÄ±klama sesi vs.)
+    // ilk 300 ms'yi at (butona tıklama sesi vs.)
     let sil = &silence[silence.len().min(14_400)..];
     let noise_db = rms_db(sil);
     let total: f32 = sil.iter().map(|v| v * v).sum::<f32>().max(1e-12);
     let hum: f32 = [50.0, 100.0, 150.0, 60.0, 120.0].iter().map(|&hz| goertzel(sil, hz)).sum::<f32>() * 2.0 / sil.len().max(1) as f32;
     let hum_pct = (hum / total * 100.0).clamp(0.0, 100.0);
+    // Gerçek şebeke vınlaması dar bir tepedir: 50 Hz (ve 100 Hz) çevresindeki frekanslardan
+    // belirgin şekilde güçlü olmalı. Fan/masa titreşimi gibi geniş alçak uğultu bunu sağlamaz.
+    let tonal = |f0: f32| {
+        let side = (goertzel(sil, f0 * 0.78) + goertzel(sil, f0 * 1.27)) * 0.5;
+        goertzel(sil, f0) > side.max(1e-12) * 6.0
+    };
+    let is_hum = tonal(50.0) || tonal(100.0) || tonal(60.0);
 
     let speech_peak_db = peak_db(speech);
     let speech_rms_db = rms_db(speech);
@@ -65,63 +72,63 @@ pub fn analyze(silence: &[f32], speech: &[f32], info: &EngineInfo, underruns: u6
 
     if clipped > 0 {
         out.push(f("bad", "Sinyal doyuyor (clipping)", format!(
-            "Seste %{clip_pct:.2} kÄ±rpÄ±lma var. CÄ±zÄ±rtÄ±nÄ±n en sÄ±k sebebi bu. UM2 Ã¼zerindeki GAIN dÃ¼ÄŸmesini biraz kÄ±s; konuÅŸurken kÄ±rmÄ±zÄ± CLIP Ä±ÅŸÄ±ÄŸÄ± yanmamalÄ±."
+            "Seste %{clip_pct:.2} kırpılma var. Cızırtının en sık sebebi bu. UM2 üzerindeki GAIN düğmesini biraz kıs; konuşurken kırmızı CLIP ışığı yanmamalı."
         )));
     }
     if speech_peak_db < -42.0 {
         out.push(f("bad", "Mikrofondan neredeyse sinyal gelmiyor", format!(
-            "KonuÅŸma tepe seviyesi {speech_peak_db:.0} dBFS. C-1 condenser mikrofon, phantom gÃ¼Ã§ olmadan Ã§alÄ±ÅŸmaz: UM2'deki +48V dÃ¼ÄŸmesi aÃ§Ä±k olmalÄ±. Kablo ve kanal seÃ§imini de kontrol et."
+            "Konuşma tepe seviyesi {speech_peak_db:.0} dBFS. C-1 condenser mikrofon, phantom güç olmadan çalışmaz: UM2'deki +48V düğmesi açık olmalı. Kablo ve kanal seçimini de kontrol et."
         )));
     } else if speech_peak_db < -20.0 {
-        out.push(f("warn", "Ses seviyesi dÃ¼ÅŸÃ¼k", format!(
-            "KonuÅŸma tepe seviyesi {speech_peak_db:.0} dBFS. UM2 GAIN dÃ¼ÄŸmesini biraz aÃ§. YazÄ±lÄ±m kazancÄ± gÃ¼rÃ¼ltÃ¼yÃ¼ de bÃ¼yÃ¼tÃ¼r; Ã¶nce donanÄ±mdan aÃ§."
+        out.push(f("warn", "Ses seviyesi düşük", format!(
+            "Konuşma tepe seviyesi {speech_peak_db:.0} dBFS. UM2 GAIN düğmesini biraz aç. Yazılım kazancı gürültüyü de büyütür; önce donanımdan aç."
         )));
         let need = (-9.0 - speech_peak_db).clamp(0.0, 12.0);
         suggest.insert("in_gain_db".into(), json!((need * 2.0).round() / 2.0));
     } else if clipped == 0 {
-        out.push(f("ok", "Ses seviyesi iyi", format!("KonuÅŸma tepe seviyesi {speech_peak_db:.0} dBFS.")));
+        out.push(f("ok", "Ses seviyesi iyi", format!("Konuşma tepe seviyesi {speech_peak_db:.0} dBFS.")));
     }
 
     if noise_db > -40.0 {
-        out.push(f("bad", "Ortam gÃ¼rÃ¼ltÃ¼sÃ¼ Ã§ok yÃ¼ksek", format!(
-            "Sessizken {noise_db:.0} dBFS gÃ¼rÃ¼ltÃ¼ Ã¶lÃ§Ã¼ldÃ¼. Fanlar, klima veya mikrofonun bilgisayara yakÄ±nlÄ±ÄŸÄ± etkili olabilir. GÃ¼rÃ¼ltÃ¼ KalkanÄ± bunu bÃ¼yÃ¼k Ã¶lÃ§Ã¼de siler ama kaynaÄŸÄ± azaltmak en iyisi."
+        out.push(f("bad", "Ortam gürültüsü çok yüksek", format!(
+            "Sessizken {noise_db:.0} dBFS gürültü ölçüldü. Fanlar, klima veya mikrofonun bilgisayara yakınlığı etkili olabilir. Gürültü Kalkanı bunu büyük ölçüde siler ama kaynağı azaltmak en iyisi."
         )));
     } else if noise_db > -55.0 {
-        out.push(f("warn", "Arka plan gÃ¼rÃ¼ltÃ¼sÃ¼ var", format!("Sessizken {noise_db:.0} dBFS. Temiz AI pedalÄ± aÃ§Ä±k kalsÄ±n.")));
+        out.push(f("warn", "Arka plan gürültüsü var", format!("Sessizken {noise_db:.0} dBFS. Temiz AI pedalı açık kalsın.")));
     } else {
-        out.push(f("ok", "Sessiz ortam", format!("GÃ¼rÃ¼ltÃ¼ tabanÄ± {noise_db:.0} dBFS.")));
+        out.push(f("ok", "Sessiz ortam", format!("Gürültü tabanı {noise_db:.0} dBFS.")));
     }
-    if hum_pct > 30.0 && noise_db > -65.0 {
-        out.push(f("warn", "Elektrik vÄ±nlamasÄ± (50 Hz)", format!(
-            "GÃ¼rÃ¼ltÃ¼nÃ¼n %{hum_pct:.0}'i ÅŸebeke frekansÄ±nda. USB kablosunu farklÄ± bir porta (tercihen arka panel) tak, telefon ÅŸarj aletlerini uzaklaÅŸtÄ±r veya topraklÄ± priz kullan."
+    if is_hum && hum_pct > 30.0 && noise_db > -65.0 {
+        out.push(f("warn", "Elektrik vınlaması (50 Hz)", format!(
+            "Gürültünün %{hum_pct:.0}'i şebeke frekansında. USB kablosunu farklı bir porta (tercihen arka panel) tak, telefon şarj aletlerini uzaklaştır veya topraklı priz kullan."
         )));
     }
 
     if info.in_rate != 48_000 {
-        out.push(f("warn", "Mikrofon 48 kHz deÄŸil", format!(
-            "UM2 ÅŸu an {} Hz Ã§alÄ±ÅŸÄ±yor. Ses paneli â€º KayÄ±t â€º UM2 â€º Ã–zellikler â€º GeliÅŸmiÅŸ bÃ¶lÃ¼mÃ¼nden \"2 kanal, 24 bit, 48000 Hz\" seÃ§. Uygulama dÃ¶nÃ¼ÅŸtÃ¼rÃ¼yor ama yerel 48 kHz daha temizdir.",
+        out.push(f("warn", "Mikrofon 48 kHz değil", format!(
+            "UM2 şu an {} Hz çalışıyor. Ses paneli › Kayıt › UM2 › Özellikler › Gelişmiş bölümünden \"2 kanal, 24 bit, 48000 Hz\" seç. Uygulama dönüştürüyor ama yerel 48 kHz daha temizdir.",
             info.in_rate
         )));
     }
     if info.out_rate != 48_000 {
-        out.push(f("warn", "VB-Cable 48 kHz deÄŸil", format!(
-            "CABLE Input {} Hz. Ses paneli â€º KayÄ±ttan \"CABLE Output\" ve KayÄ±ttan Ã§almadan \"CABLE Input\" iÃ§in 48000 Hz seÃ§.",
+        out.push(f("warn", "VB-Cable 48 kHz değil", format!(
+            "CABLE Input {} Hz. Ses paneli › Kayıttan \"CABLE Output\" ve Kayıttan çalmadan \"CABLE Input\" için 48000 Hz seç.",
             info.out_rate
         )));
     }
     if underruns > 0 {
         let more = (p.buffer_ms + 10.0).min(80.0);
-        out.push(f("warn", "Tampon boÅŸaldÄ±", format!(
-            "Test sÄ±rasÄ±nda {underruns} kez ses kesildi; bu Ã§Ä±tÄ±rtÄ± yapar. Tampon {:.0} ms'den {more:.0} ms'ye Ã§Ä±karÄ±labilir.",
+        out.push(f("warn", "Tampon boşaldı", format!(
+            "Test sırasında {underruns} kez ses kesildi; bu çıtırtı yapar. Tampon {:.0} ms'den {more:.0} ms'ye çıkarılabilir.",
             p.buffer_ms
         )));
         suggest.insert("buffer_ms".into(), json!(more));
     }
     if cpu > 0.5 {
-        out.push(f("warn", "Ä°ÅŸlemci yÃ¼kÃ¼ yÃ¼ksek", format!("Ses iÅŸleme bloÄŸun %{:.0}'ini kullanÄ±yor.", cpu * 100.0)));
+        out.push(f("warn", "İşlemci yükü yüksek", format!("Ses işleme bloğun %{:.0}'ini kullanıyor.", cpu * 100.0)));
     }
 
-    // gate eÅŸiÄŸi: gÃ¼rÃ¼ltÃ¼nÃ¼n ~12 dB Ã¼stÃ¼, konuÅŸmanÄ±n en az 18 dB altÄ±
+    // gate eşiği: gürültünün ~12 dB üstü, konuşmanın en az 18 dB altı
     let mut gate = (noise_db + 12.0).clamp(-70.0, -30.0);
     if speech_rms_db > -60.0 {
         gate = gate.min(speech_rms_db - 18.0).max(-70.0);
