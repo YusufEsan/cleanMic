@@ -96,6 +96,9 @@ pub struct EngineInfo {
     pub out_rate: u32,
     pub in_channels: u16,
     pub in_format: String,
+    /// "exclusive" (ekran paylaşımında gizli) ya da "shared"
+    pub out_mode: String,
+    pub out_note: Option<String>,
 }
 
 /// Motor çalışırken uygulamanın kullandığı uçlar.
@@ -497,6 +500,26 @@ fn out_stream<T: SizedSample + FromSample<f32>>(dev: &Device, sc: &StreamConfig,
     dev.build_output_stream(sc, move |d: &mut [T], _: &_| op.fill(d), err, None)
 }
 
+fn new_outproc(cons: HeapCons<f32>, ch: usize, rate: u32, is_main: bool, shared: Arc<Shared>) -> OutProc {
+    OutProc {
+        cons,
+        ch,
+        step: 48_000.0 / rate as f64,
+        frac: 0.0,
+        a: 0.0,
+        b: 0.0,
+        primed: false,
+        is_main,
+        shared,
+        extra: 0,
+        max_chunk: 0,
+        calm: 0,
+        ramp: 0.0,
+        fill_avg: 0.0,
+        boosted: false,
+    }
+}
+
 fn build_output(dev: &Device, cons: HeapCons<f32>, is_main: bool, shared: Arc<Shared>) -> Result<(Stream, u32), String> {
     let cfg = dev.default_output_config().map_err(|e| e.to_string())?;
     let rate = cfg.sample_rate().0;
@@ -529,7 +552,7 @@ fn build_output(dev: &Device, cons: HeapCons<f32>, is_main: bool, shared: Arc<Sh
     s.map(|s| (s, rate)).map_err(|e| format!("Çıkış açılamadı: {e}"))
 }
 
-fn build(settings: &Settings, shared: Arc<Shared>) -> Result<(Vec<Stream>, EngineIo), String> {
+fn build(settings: &Settings, shared: Arc<Shared>) -> Result<(Running, EngineIo), String> {
     let host = cpal::default_host();
     let in_dev = find_input(&host, &settings.input_device)?;
     let out_dev = find_output(&host, &settings.output_device)?;
@@ -571,7 +594,47 @@ fn build(settings: &Settings, shared: Arc<Shared>) -> Result<(Vec<Stream>, Engin
         boosted: false,
     };
 
-    let (out_stream, out_rate) = build_output(&out_dev, main_c, true, shared.clone())?;
+    // Ana çıkış: önce WASAPI özel mod (Discord ekran paylaşımı gibi loopback yakalamalarına
+    // görünmez), açılamazsa paylaşımlı moda düşülür. Tampon, özel mod başarılı olana kadar
+    // `slot`ta bekler; başarısızlıkta geri alınıp paylaşımlı çıkışa verilir.
+    let slot = Arc::new(Mutex::new(Some(main_c)));
+    let mut excl = None;
+    let mut out_stream = None;
+    let mut out_rate = 48_000;
+    let mut out_mode = "shared".to_string();
+    let mut out_note = None;
+    #[cfg(windows)]
+    if settings.hide_from_capture {
+        let (slot2, sh2, sh3) = (slot.clone(), shared.clone(), shared.clone());
+        let r = crate::exclusive::start(
+            &out_name,
+            move |rate, ch| {
+                let cons = slot2.lock().unwrap().take().expect("çıkış tamponu");
+                let mut op = new_outproc(cons, ch, rate, true, sh2);
+                Box::new(move |buf: &mut [f32]| op.fill::<f32>(buf))
+            },
+            move |e| {
+                if let Ok(mut g) = sh3.error.lock() {
+                    *g = Some(e);
+                }
+            },
+        );
+        match r {
+            Ok((x, inf)) => {
+                out_rate = inf.rate;
+                out_mode = "exclusive".into();
+                out_note = Some(inf.format);
+                excl = Some(x);
+            }
+            Err(e) => out_note = Some(format!("Özel mod açılamadı: {e}")),
+        }
+    }
+    if excl.is_none() {
+        let cons = slot.lock().unwrap().take().ok_or("Çıkış tamponu kullanılamıyor")?;
+        let (s, r) = build_output(&out_dev, cons, true, shared.clone())?;
+        out_rate = r;
+        out_stream = Some(s);
+    }
     let mut monitor_name = None;
     let mon_stream = match &mon_dev {
         Some(d) => match build_output(d, mon_c, false, shared.clone()) {
@@ -585,7 +648,9 @@ fn build(settings: &Settings, shared: Arc<Shared>) -> Result<(Vec<Stream>, Engin
     };
     let in_stream = build_input(&in_dev, &in_cfg, ip, shared.clone())?;
 
-    out_stream.play().map_err(|e| e.to_string())?;
+    if let Some(s) = &out_stream {
+        s.play().map_err(|e| e.to_string())?;
+    }
     if let Some(s) = &mon_stream {
         let _ = s.play();
     }
@@ -599,10 +664,22 @@ fn build(settings: &Settings, shared: Arc<Shared>) -> Result<(Vec<Stream>, Engin
         out_rate,
         in_channels: in_cfg.channels(),
         in_format: format!("{:?}", in_cfg.sample_format()),
+        out_mode,
+        out_note,
     };
-    let mut streams = vec![in_stream, out_stream];
+    let mut streams = vec![in_stream];
+    streams.extend(out_stream);
     streams.extend(mon_stream);
-    Ok((streams, EngineIo { info, sb_tx, mon_tx, rec: rec_c, spec_raw: sr_c, spec_out: so_c }))
+    Ok((Running { _streams: streams, _excl: excl }, EngineIo { info, sb_tx, mon_tx, rec: rec_c, spec_raw: sr_c, spec_out: so_c }))
+}
+
+/// Motor thread'inin canlı tuttuğu çıkışlar (düşünce kapanır)
+struct Running {
+    _streams: Vec<Stream>,
+    #[cfg(windows)]
+    _excl: Option<crate::exclusive::ExclusiveOut>,
+    #[cfg(not(windows))]
+    _excl: Option<()>,
 }
 
 /// Ses motorunu ayrı bir thread'de başlatır (cpal stream'leri o thread'de yaşar).

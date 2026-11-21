@@ -700,12 +700,27 @@ async function openSettings() {
   ]);
   deviceCache = list;
   $("#tg-autostart").setAttribute("aria-pressed", !!st.autostart);
+  hideCapture = st.settings.hide_from_capture !== false;
+  paintHide();
   // kullanıcı bu arada seçim değiştirmediyse listeyi tazele
   if ($("#btn-apply-dev").disabled) {
     fillDeviceSelects(list, st.settings, st.status.info || {});
     devOrig = devSelection();
     checkDevDirty();
   }
+}
+
+let hideCapture = true;
+/** "Ekran paylaşımında gizle" anahtarı: istenen durum + motorun gerçekte hangi modda olduğu */
+function paintHide(busy) {
+  const b = $("#tg-hide"), note = $("#hide-note");
+  if (!b) return;
+  b.setAttribute("aria-pressed", hideCapture);
+  const info = status.info || {};
+  if (busy) note.textContent = busy;
+  else if (!hideCapture) note.textContent = "Kapalı: tüm ekran paylaşımında sesin yayına iki kez gidebilir";
+  else if (info.out_mode === "exclusive") note.textContent = `Aktif · CABLE özel modda (${info.out_note || ""})`;
+  else note.textContent = `Açılamadı, normal modda çalışıyor. ${info.out_note || ""}`;
 }
 
 function bindSettings() {
@@ -719,6 +734,14 @@ function bindSettings() {
     b.addEventListener("click", () => { setDsp({ channel: +b.dataset.ch }); paintSettings(); }));
   document.querySelectorAll(".led-toggle[data-p]").forEach((b) =>
     b.addEventListener("click", () => { setDsp({ [b.dataset.p]: !dsp[b.dataset.p] }); paintSettings(); }));
+  $("#tg-hide").addEventListener("click", async () => {
+    hideCapture = !hideCapture;
+    paintHide("Yeniden bağlanıyor…");
+    try { status = await invoke("set_hide_capture", { enabled: hideCapture }); }
+    catch (err) { showBanner(String(err), "warn"); }
+    paintStatus();
+    paintHide();
+  });
   $("#tg-autostart").addEventListener("click", async (e) => {
     const b = e.currentTarget;
     const want = b.getAttribute("aria-pressed") !== "true";
@@ -775,6 +798,9 @@ function paintStatus() {
   if (!info) { wave.raw = null; wave.out = null; }
   $("#chip-in").textContent = info ? `${info.input} · ${(info.in_rate / 1000).toFixed(1)}k` : "Mikrofon yok";
   $("#chip-out").textContent = info ? info.output : "Çıkış yok";
+  $("#chip-out").title = info && info.out_mode === "exclusive"
+    ? "Özel mod: Discord ekran paylaşımı bu sesi yakalayamaz"
+    : "Normal (paylaşımlı) mod";
   if (status.error) {
     showBanner(status.error, "", 0, { label: "Yeniden dene", fn: async () => { status = await invoke("restart_engine"); paintStatus(); } });
   } else if (!$("#banner").classList.contains("warn") && !$("#banner").classList.contains("ok")) {

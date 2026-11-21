@@ -4,6 +4,8 @@ mod chain;
 mod diag;
 mod dsp;
 mod engine;
+#[cfg(windows)]
+mod exclusive;
 mod settings;
 mod sound;
 
@@ -283,6 +285,20 @@ fn set_devices(app: St, input: Option<String>, output: Option<String>, monitor: 
     app.dirty.store(true, Relaxed);
     app.restart();
     app.status()
+}
+
+/// CABLE çıkışını özel modda aç/kapat (ekran paylaşımında gizlenme) ve motoru yeniden başlat.
+#[tauri::command]
+async fn set_hide_capture(app: St<'_>, enabled: bool) -> Result<Value, String> {
+    app.settings.lock().unwrap().hide_from_capture = enabled;
+    app.dirty.store(true, Relaxed);
+    let a = app.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        a.restart();
+        a.status()
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -697,6 +713,7 @@ fn main() {
             set_preset,
             set_devices,
             restart_engine,
+            set_hide_capture,
             assign_pad,
             clear_pad,
             play_pad,

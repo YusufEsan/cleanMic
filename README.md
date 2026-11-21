@@ -194,6 +194,7 @@ Kısayollar oyun içindeyken de çalışır (global).
 | Ses robotik / kesik | Discord'da Krisp, yankı engelleme ve otomatik kazancı kapat. |
 | Ara ara çıtırtı | **Kesinti** sayacı artıyorsa Ayarlar › Tampon'u 30–40 ms yap. Teşhis'i çalıştır. |
 | Sesim çok kısık | Önce UM2 GAIN düğmesini aç, sonra Kompresör KAZANÇ ya da Ayarlar › Çıkış kazancı. |
+| Discord'da tüm ekranı paylaşınca sesim yayına iki kez gidiyor | Ayarlar › **Ekran paylaşımında gizle** açık olmalı (varsayılan). Altında "Aktif · CABLE özel modda" yazmalı. "Açılamadı" yazıyorsa: Windows Ses › Kayıttan çalma › CABLE Input › Özellikler › Gelişmiş › "Uygulamaların bu cihazın denetimini almasına izin ver" işaretli olmalı ve CABLE Input'u başka program kullanmamalı. Canlı dinleme açıksa o ses yine yayına girer; yayında kapat. |
 | Kendi sesimi yankı olarak duyuyorum | Canlı dinleme açık ve hoparlör kullanıyorsun; kulaklık tak ya da canlı dinlemeyi kapat. |
 
 ## Geliştirme

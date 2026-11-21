@@ -1,5 +1,15 @@
 # Değişiklik günlüğü
 
+## 0.2.4
+
+- **Discord'da tüm ekranı paylaşınca sesin yayına ikinci kez karışması giderildi.** CleanMic,
+  CABLE Input'u artık WASAPI özel (exclusive) modda açıyor: ses Windows karıştırıcısına hiç
+  uğramadığı için ekran paylaşımı gibi loopback yakalamaları onu göremiyor. Oyunlar ve Discord
+  sesini CABLE Output'tan eskisi gibi alıyor.
+- Ayarlar › Davranış › **Ekran paylaşımında gizle** (varsayılan açık). Altında modun gerçekten
+  devrede olup olmadığı yazar; özel mod açılamazsa uygulama normal moda düşer.
+- `examples/loopback_probe`: bir çıkışın loopback ile yakalanıp yakalanamadığını ölçen tanı aracı.
+
 ## 0.2.3 — ilk yayın
 
 İlk dağıtılan sürüm. Windows 10/11 x64, [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) gerektirir.

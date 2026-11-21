@@ -426,6 +426,8 @@ pub struct Settings {
     pub monitor_device: Option<String>,
     pub pads: Vec<Option<PadInfo>>,
     pub custom_presets: Vec<CustomPreset>,
+    /// CABLE çıkışını özel modda aç: Discord ekran paylaşımı sesi bizi yakalamasın
+    pub hide_from_capture: bool,
 }
 
 impl Default for Settings {
@@ -437,6 +439,7 @@ impl Default for Settings {
             monitor_device: None,
             pads: vec![None; PAD_COUNT],
             custom_presets: Vec::new(),
+            hide_from_capture: true,
         }
     }
 }
